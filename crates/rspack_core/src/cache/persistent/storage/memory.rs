@@ -31,7 +31,7 @@ impl Storage for MemoryStorage {
     let mut map = self.inner.lock().expect("should get lock");
     map.get_mut(scope).map(|map| map.remove(key));
   }
-  fn idle(&self) {}
+  fn trigger_save(&self) {}
 }
 
 #[cfg(test)]

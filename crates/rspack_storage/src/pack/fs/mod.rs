@@ -30,7 +30,7 @@ impl PackFS for PackBridgeFS {
     match self.metadata(path).await {
       Ok(_) => Ok(true),
       Err(e) => {
-        if e.to_string().contains("file not exist") {
+        if e.to_string().contains("no such file") {
           Ok(false)
         } else {
           Err(e)

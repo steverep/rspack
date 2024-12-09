@@ -1,9 +1,9 @@
-use std::{fmt::Debug, future::Future};
+use std::{fmt::Debug, future::Future, sync::LazyLock};
 
 use futures::{future::BoxFuture, FutureExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-pub struct TaskQueue(UnboundedSender<BoxFuture<'static, ()>>);
+pub struct TaskQueue(LazyLock<UnboundedSender<BoxFuture<'static, ()>>>);
 
 impl Debug for TaskQueue {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -13,14 +13,16 @@ impl Debug for TaskQueue {
 
 impl TaskQueue {
   pub fn new() -> Self {
-    let (tx, mut rx) = unbounded_channel();
-    tokio::spawn(async move {
-      while let Some(future) = rx.recv().await {
-        future.await
-      }
-    });
+    TaskQueue(LazyLock::new(|| {
+      let (tx, mut rx) = unbounded_channel();
+      tokio::spawn(async move {
+        while let Some(future) = rx.recv().await {
+          future.await
+        }
+      });
 
-    Self(tx)
+      tx
+    }))
   }
 
   pub fn add_task(&self, task: impl Future<Output = ()> + Send + 'static) {
