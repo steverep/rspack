@@ -42,7 +42,7 @@ pub struct PackFsError {
 impl PackFsError {
   pub fn from_fs_error(file: &Utf8Path, opt: PackFsErrorOpt, error: rspack_fs::Error) -> Self {
     let kind = match &error {
-      rspack_fs::Error::Io(e) => Some(e.kind().clone()),
+      rspack_fs::Error::Io(e) => Some(e.kind()),
     };
     Self {
       file: file.to_string(),
