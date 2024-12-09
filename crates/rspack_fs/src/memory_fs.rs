@@ -242,7 +242,10 @@ impl ReadableFileSystem for MemoryFileSystem {
     let files = self.files.lock().expect("should get lock");
     match files.get(path) {
       Some(FileType::File { content, .. }) => Ok(content.clone()),
-      _ => Err(new_error("file not exist")),
+      _ => Err(Error::Io(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "file not exist",
+      ))),
     }
   }
 
@@ -250,7 +253,10 @@ impl ReadableFileSystem for MemoryFileSystem {
     let files = self.files.lock().expect("should get lock");
     match files.get(path) {
       Some(ft) => Ok(ft.metadata().clone()),
-      None => Err(new_error("file not exist")),
+      None => Err(Error::Io(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "file not exist",
+      ))),
     }
   }
 

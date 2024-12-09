@@ -29,13 +29,16 @@ impl PackFS for PackBridgeFS {
   async fn exists(&self, path: &Utf8Path) -> Result<bool> {
     match self.metadata(path).await {
       Ok(_) => Ok(true),
-      Err(e) => {
-        if e.to_string().contains("No such file") || e.to_string().contains("file not exist") {
-          Ok(false)
-        } else {
-          Err(e)
+      Err(e) => match e.downcast::<PackFsError>() {
+        Ok(e) => {
+          if e.is_not_found() {
+            Ok(false)
+          } else {
+            Err(e.into())
+          }
         }
-      }
+        Err(e) => Err(e),
+      },
     }
   }
 

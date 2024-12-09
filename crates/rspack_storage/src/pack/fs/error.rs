@@ -1,3 +1,5 @@
+use std::io::ErrorKind;
+
 use rspack_error::{
   miette::{self},
   thiserror::{self, Error},
@@ -34,14 +36,25 @@ pub struct PackFsError {
   file: String,
   inner: Error,
   opt: PackFsErrorOpt,
+  kind: Option<ErrorKind>,
 }
 
 impl PackFsError {
   pub fn from_fs_error(file: &Utf8Path, opt: PackFsErrorOpt, error: rspack_fs::Error) -> Self {
+    let kind = match &error {
+      rspack_fs::Error::Io(e) => Some(e.kind().clone()),
+    };
     Self {
       file: file.to_string(),
       inner: error.into(),
       opt,
+      kind,
+    }
+  }
+  pub fn is_not_found(&self) -> bool {
+    match &self.kind {
+      Some(kind) => kind == &ErrorKind::NotFound,
+      None => false,
     }
   }
 }
