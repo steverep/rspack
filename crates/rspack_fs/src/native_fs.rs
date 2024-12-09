@@ -153,7 +153,7 @@ pub struct NativeWriteStream(BufWriter<File>);
 
 impl NativeWriteStream {
   pub fn try_new(file: &Utf8Path) -> Result<Self> {
-    let file = File::open(file).map_err(Error::from)?;
+    let file = File::create_new(file).map_err(Error::from)?;
     Ok(Self(BufWriter::new(file)))
   }
 }

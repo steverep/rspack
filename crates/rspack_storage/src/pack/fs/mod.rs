@@ -30,7 +30,7 @@ impl PackFS for PackBridgeFS {
     match self.metadata(path).await {
       Ok(_) => Ok(true),
       Err(e) => {
-        if e.to_string().contains("no such file") {
+        if e.to_string().contains("No such file") || e.to_string().contains("file not exist") {
           Ok(false)
         } else {
           Err(e)
@@ -40,11 +40,13 @@ impl PackFS for PackBridgeFS {
   }
 
   async fn remove_dir(&self, path: &Utf8Path) -> Result<()> {
-    self
-      .0
-      .remove_dir_all(path)
-      .await
-      .map_err(|e| PackFsError::from_fs_error(path, PackFsErrorOpt::Remove, e))?;
+    if self.exists(path).await? {
+      self
+        .0
+        .remove_dir_all(path)
+        .await
+        .map_err(|e| PackFsError::from_fs_error(path, PackFsErrorOpt::Remove, e))?;
+    }
     Ok(())
   }
 
