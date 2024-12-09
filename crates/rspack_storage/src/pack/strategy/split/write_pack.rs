@@ -262,21 +262,19 @@ mod tests {
 
   use itertools::Itertools;
   use rspack_error::Result;
-  use rspack_fs::MemoryFileSystem;
-  use rspack_paths::Utf8PathBuf;
   use rustc_hash::FxHashMap as HashMap;
 
   use crate::pack::{
     data::{Pack, PackFileMeta, PackOptions},
-    fs::{PackBridgeFS, PackFS},
     strategy::{
-      split::util::test_pack_utils::{mock_updates, UpdateVal},
+      split::util::test_pack_utils::{clean_strategy, create_strategies, mock_updates, UpdateVal},
       PackWriteStrategy, SplitPackStrategy, UpdatePacksResult,
     },
   };
 
   async fn test_write_pack(strategy: &SplitPackStrategy) -> Result<()> {
-    let mut pack = Pack::new(Utf8PathBuf::from("/cache/test_write_pack/pack"));
+    let dir = strategy.root.join("write");
+    let mut pack = Pack::new(dir);
     pack.keys.set_value(vec![
       Arc::new("key_1".as_bytes().to_vec()),
       Arc::new("key_2".as_bytes().to_vec()),
@@ -324,7 +322,7 @@ mod tests {
   }
 
   async fn test_update_packs(strategy: &SplitPackStrategy) -> Result<()> {
-    let dir = Utf8PathBuf::from("/cache/test_update_packs");
+    let dir = strategy.root.join("update");
     let options = PackOptions {
       bucket_size: 1,
       pack_size: 2000,
@@ -429,36 +427,24 @@ mod tests {
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_write_pack() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    fs.remove_dir(&Utf8PathBuf::from("/cache/test_write_pack"))
-      .await
-      .expect("should clean dir");
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_write_pack"),
-      Utf8PathBuf::from("/temp/test_write_pack"),
-      fs.clone(),
-    );
+    for strategy in create_strategies("write_pack") {
+      clean_strategy(&strategy).await;
 
-    let _ = test_write_pack(&strategy)
-      .await
-      .map_err(|e| panic!("{}", e));
+      let _ = test_write_pack(&strategy)
+        .await
+        .map_err(|e| panic!("{}", e));
+    }
   }
 
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_update_packs() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    fs.remove_dir(&Utf8PathBuf::from("/cache/test_update_packs"))
-      .await
-      .expect("should clean dir");
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_update_packs"),
-      Utf8PathBuf::from("/temp/test_update_packs"),
-      fs.clone(),
-    );
+    for strategy in create_strategies("update_packs") {
+      clean_strategy(&strategy).await;
 
-    let _ = test_update_packs(&strategy)
-      .await
-      .map_err(|e| panic!("{}", e));
+      let _ = test_update_packs(&strategy)
+        .await
+        .map_err(|e| panic!("{}", e));
+    }
   }
 }

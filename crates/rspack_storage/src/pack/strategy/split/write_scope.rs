@@ -271,16 +271,13 @@ mod tests {
   use std::{collections::HashMap, sync::Arc};
 
   use rspack_error::Result;
-  use rspack_fs::{MemoryFileSystem, NativeFileSystem};
-  use rspack_paths::{AssertUtf8, Utf8PathBuf};
 
   use crate::pack::{
     data::{PackOptions, PackScope},
-    fs::PackBridgeFS,
     strategy::{
       split::util::test_pack_utils::{
-        clean_scope_path, count_bucket_packs, count_scope_packs, get_bucket_pack_sizes,
-        mock_updates, save_scope, UpdateVal,
+        clean_strategy, count_bucket_packs, count_scope_packs, create_strategies,
+        get_bucket_pack_sizes, mock_updates, save_scope, UpdateVal,
       },
       ScopeReadStrategy, ScopeWriteStrategy,
     },
@@ -477,143 +474,56 @@ mod tests {
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_write_single_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_write_scope/memory_single"),
-      Utf8PathBuf::from("/temp/test_write_scope/memory_single"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 1,
-      pack_size: 32,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
-
-    let _ = test_single_bucket(&mut scope, &strategy)
-      .await
-      .map_err(|e| {
-        panic!("{}", e);
+    for strategy in create_strategies("write_single") {
+      let options = Arc::new(PackOptions {
+        bucket_size: 1,
+        pack_size: 32,
+        expire: 1000000,
       });
+      let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
+      clean_strategy(&strategy).await;
+
+      let _ = test_single_bucket(&mut scope, &strategy)
+        .await
+        .map_err(|e| {
+          panic!("{}", e);
+        });
+    }
   }
 
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_write_multi_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_write_scope/memory_multi"),
-      Utf8PathBuf::from("/temp/test_write_scope/memory_multi"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 10,
-      pack_size: 32,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
+    for strategy in create_strategies("write_multi") {
+      let options = Arc::new(PackOptions {
+        bucket_size: 10,
+        pack_size: 32,
+        expire: 1000000,
+      });
+      let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
+      clean_strategy(&strategy).await;
 
-    let _ = test_multi_bucket(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
+      let _ = test_multi_bucket(&mut scope, &strategy).await.map_err(|e| {
+        panic!("{}", e);
+      });
+    }
   }
 
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_write_big_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_write_scope/memory_big"),
-      Utf8PathBuf::from("/temp/test_write_scope/memory_big"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 1,
-      pack_size: 2000,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
+    for strategy in create_strategies("write_big") {
+      let options = Arc::new(PackOptions {
+        bucket_size: 1,
+        pack_size: 2000,
+        expire: 1000000,
+      });
+      let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
+      clean_strategy(&strategy).await;
 
-    let _ = test_big_bucket(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
-  }
-
-  fn get_native_path(p: &str) -> Utf8PathBuf {
-    std::env::temp_dir()
-      .join("./rspack_test/storage")
-      .join(format!("{p}").as_str())
-      .assert_utf8()
-  }
-
-  #[tokio::test]
-  #[cfg_attr(miri, ignore)]
-  async fn should_native_write_single_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(NativeFileSystem {})));
-    let strategy = SplitPackStrategy::new(
-      get_native_path("cache/test_write_scope/native_single"),
-      get_native_path("temp/test_write_scope/native_single"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 1,
-      pack_size: 32,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
-
-    let _ = test_single_bucket(&mut scope, &strategy)
-      .await
-      .map_err(|e| {
+      let _ = test_big_bucket(&mut scope, &strategy).await.map_err(|e| {
         panic!("{}", e);
       });
-  }
-
-  #[tokio::test]
-  #[cfg_attr(miri, ignore)]
-  async fn should_native_write_multi_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(NativeFileSystem {})));
-    let strategy = SplitPackStrategy::new(
-      get_native_path("cache/test_write_scope/native_multi"),
-      get_native_path("temp/test_write_scope/native_multi"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 10,
-      pack_size: 32,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
-
-    let _ = test_multi_bucket(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
-  }
-
-  #[tokio::test]
-  #[cfg_attr(miri, ignore)]
-  async fn should_native_write_big_bucket_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(NativeFileSystem {})));
-    let strategy = SplitPackStrategy::new(
-      get_native_path("cache/test_write_scope/native_big"),
-      get_native_path("temp/test_write_scope/native_big"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 1,
-      pack_size: 2000,
-      expire: 1000000,
-    });
-    let mut scope = PackScope::empty(strategy.get_path("scope_name"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
-
-    let _ = test_big_bucket(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
+    }
   }
 }

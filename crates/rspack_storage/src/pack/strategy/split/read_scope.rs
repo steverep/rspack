@@ -246,26 +246,27 @@ mod tests {
 
   use itertools::Itertools;
   use rspack_error::Result;
-  use rspack_fs::MemoryFileSystem;
-  use rspack_paths::{Utf8Path, Utf8PathBuf};
+  use rspack_paths::Utf8Path;
 
   use crate::pack::{
     data::{PackOptions, PackScope, ScopeMeta},
-    fs::{PackBridgeFS, PackFS},
+    fs::PackFS,
     strategy::{
-      split::util::test_pack_utils::{mock_meta_file, mock_pack_file},
+      split::util::test_pack_utils::{
+        clean_strategy, create_strategies, mock_meta_file, mock_pack_file,
+      },
       ScopeReadStrategy, SplitPackStrategy,
     },
   };
 
-  async fn mock_scope(path: &Utf8Path, fs: Arc<dyn PackFS>, options: &PackOptions) -> Result<()> {
-    mock_meta_file(&ScopeMeta::get_path(path), fs.clone(), options, 3).await?;
+  async fn mock_scope(path: &Utf8Path, fs: &dyn PackFS, options: &PackOptions) -> Result<()> {
+    mock_meta_file(&ScopeMeta::get_path(path), fs, options, 3).await?;
     for bucket_id in 0..options.bucket_size {
       for pack_no in 0..3 {
         let unique_id = format!("{}_{}", bucket_id, pack_no);
         let pack_name = format!("pack_name_{}_{}", bucket_id, pack_no);
         let pack_path = path.join(format!("./{}/{}", bucket_id, pack_name));
-        mock_pack_file(&pack_path, &unique_id, 10, fs.clone()).await?;
+        mock_pack_file(&pack_path, &unique_id, 10, fs).await?;
       }
     }
 
@@ -327,43 +328,28 @@ mod tests {
     Ok(())
   }
 
-  async fn clean_scope_path(scope: &PackScope, strategy: &SplitPackStrategy, fs: Arc<dyn PackFS>) {
-    fs.remove_dir(&scope.path).await.expect("should remove dir");
-    fs.remove_dir(
-      &strategy
-        .get_temp_path(&scope.path)
-        .expect("should get temp path"),
-    )
-    .await
-    .expect("should remove dir");
-  }
-
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_read_scope() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache"),
-      Utf8PathBuf::from("/temp"),
-      fs.clone(),
-    );
-    let options = Arc::new(PackOptions {
-      bucket_size: 1,
-      pack_size: 16,
-      expire: 60000,
-    });
-    let mut scope = PackScope::new(Utf8PathBuf::from("/cache/test_read_meta"), options.clone());
-    clean_scope_path(&scope, &strategy, fs.clone()).await;
+    for strategy in create_strategies("read_scope") {
+      clean_strategy(&strategy).await;
+      let options = Arc::new(PackOptions {
+        bucket_size: 1,
+        pack_size: 16,
+        expire: 60000,
+      });
+      let mut scope = PackScope::new(strategy.get_path("scope_name"), options.clone());
 
-    mock_scope(&scope.path, fs.clone(), &scope.options)
-      .await
-      .expect("should mock packs");
+      mock_scope(&scope.path, strategy.fs.as_ref(), &scope.options)
+        .await
+        .expect("should mock packs");
 
-    let _ = test_read_meta(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
-    let _ = test_read_packs(&mut scope, &strategy).await.map_err(|e| {
-      panic!("{}", e);
-    });
+      let _ = test_read_meta(&mut scope, &strategy).await.map_err(|e| {
+        panic!("{}", e);
+      });
+      let _ = test_read_packs(&mut scope, &strategy).await.map_err(|e| {
+        panic!("{}", e);
+      });
+    }
   }
 }

@@ -97,18 +97,22 @@ pub mod test_pack_utils {
 
   use itertools::Itertools;
   use rspack_error::Result;
-  use rspack_paths::Utf8Path;
+  use rspack_fs::{MemoryFileSystem, NativeFileSystem};
+  use rspack_paths::{AssertUtf8, Utf8Path, Utf8PathBuf};
   use rustc_hash::FxHashMap as HashMap;
 
-  use crate::pack::{
-    data::{PackOptions, PackScope},
-    fs::PackFS,
-    strategy::{ScopeUpdate, ScopeWriteStrategy, SplitPackStrategy, WriteScopeResult},
+  use crate::{
+    pack::{
+      data::{PackOptions, PackScope},
+      fs::PackFS,
+      strategy::{ScopeUpdate, ScopeWriteStrategy, SplitPackStrategy, WriteScopeResult},
+    },
+    PackBridgeFS,
   };
 
   pub async fn mock_meta_file(
     path: &Utf8Path,
-    fs: Arc<dyn PackFS>,
+    fs: &dyn PackFS,
     options: &PackOptions,
     pack_count: usize,
   ) -> Result<()> {
@@ -142,7 +146,7 @@ pub mod test_pack_utils {
     path: &Utf8Path,
     unique_id: &str,
     item_count: usize,
-    fs: Arc<dyn PackFS>,
+    fs: &dyn PackFS,
   ) -> Result<()> {
     fs.ensure_dir(path.parent().expect("should have parent"))
       .await?;
@@ -219,19 +223,17 @@ pub mod test_pack_utils {
     res
   }
 
-  pub async fn clean_scope_path(
-    scope: &PackScope,
-    strategy: &SplitPackStrategy,
-    fs: Arc<dyn PackFS>,
-  ) {
-    fs.remove_dir(&scope.path).await.expect("should remove dir");
-    fs.remove_dir(
-      &strategy
-        .get_temp_path(&scope.path)
-        .expect("should get temp path"),
-    )
-    .await
-    .expect("should remove dir");
+  pub async fn clean_strategy(strategy: &SplitPackStrategy) {
+    strategy
+      .fs
+      .remove_dir(&strategy.root)
+      .await
+      .expect("should remove dir");
+    strategy
+      .fs
+      .remove_dir(&strategy.temp_root)
+      .await
+      .expect("should remove dir");
   }
 
   pub async fn flush_file_mtime(path: &Utf8Path, fs: Arc<dyn PackFS>) -> Result<()> {
@@ -254,5 +256,33 @@ pub mod test_pack_utils {
       .await?;
     strategy.after_all(scope)?;
     Ok(res)
+  }
+
+  fn get_native_path(p: &str) -> Utf8PathBuf {
+    std::env::temp_dir()
+      .join("./rspack_test/storage")
+      .join(p)
+      .assert_utf8()
+  }
+
+  fn get_memory_path(p: &str) -> Utf8PathBuf {
+    Utf8PathBuf::from("/").join(p)
+  }
+
+  pub fn create_strategies(case: &str) -> Vec<SplitPackStrategy> {
+    let fs = [
+      (
+        Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default()))),
+        get_memory_path(case),
+      ),
+      (
+        Arc::new(PackBridgeFS(Arc::new(NativeFileSystem {}))),
+        get_native_path(case),
+      ),
+    ];
+
+    fs.into_iter()
+      .map(|(fs, root)| SplitPackStrategy::new(root.join("cache"), root.join("temp"), fs.clone()))
+      .collect_vec()
   }
 }

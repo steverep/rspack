@@ -67,21 +67,19 @@ impl PackReadStrategy for SplitPackStrategy {
 
 #[cfg(test)]
 mod tests {
-  use std::sync::Arc;
 
   use rspack_error::Result;
-  use rspack_fs::MemoryFileSystem;
   use rspack_paths::Utf8PathBuf;
   use rustc_hash::FxHashSet as HashSet;
 
-  use crate::pack::{
-    fs::{PackBridgeFS, PackFS},
-    strategy::{split::util::test_pack_utils::mock_pack_file, PackReadStrategy, SplitPackStrategy},
+  use crate::pack::strategy::{
+    split::util::test_pack_utils::{clean_strategy, create_strategies, mock_pack_file},
+    PackReadStrategy, ScopeReadStrategy, SplitPackStrategy,
   };
 
   async fn test_read_keys_non_exists(strategy: &SplitPackStrategy) -> Result<()> {
     let non_exists_keys = strategy
-      .read_pack_keys(&Utf8PathBuf::from("/non_exists_path"))
+      .read_pack_keys(&strategy.get_path("/non_exists_path"))
       .await?;
     assert!(non_exists_keys.is_none());
     Ok(())
@@ -89,7 +87,7 @@ mod tests {
 
   async fn test_read_contents_non_exists(strategy: &SplitPackStrategy) -> Result<()> {
     let non_exists_contents = strategy
-      .read_pack_contents(&Utf8PathBuf::from("/non_exists_path"))
+      .read_pack_contents(&strategy.get_path("/non_exists_path"))
       .await?;
     assert!(non_exists_contents.is_none());
     Ok(())
@@ -124,24 +122,24 @@ mod tests {
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_read_pack() {
-    let dir = Utf8PathBuf::from("/cache/test_read_pack");
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    fs.remove_dir(&dir).await.expect("should clean dir");
-    let strategy = SplitPackStrategy::new(dir.clone(), Utf8PathBuf::from("/temp"), fs.clone());
-    mock_pack_file(&dir.join("./mock_pack"), "mock", 20, fs)
-      .await
-      .expect("should mock pack file");
-    let _ = test_read_keys(&dir.join("./mock_pack"), &strategy)
-      .await
-      .map_err(|e| panic!("{:?}", e));
-    let _ = test_read_contents(&dir.join("./mock_pack"), &strategy)
-      .await
-      .map_err(|e| panic!("{:?}", e));
-    let _ = test_read_keys_non_exists(&strategy)
-      .await
-      .map_err(|e| panic!("{:?}", e));
-    let _ = test_read_contents_non_exists(&strategy)
-      .await
-      .map_err(|e| panic!("{:?}", e));
+    for strategy in create_strategies("read_pack") {
+      clean_strategy(&strategy).await;
+      let dir = strategy.get_path("pack");
+      mock_pack_file(&dir.join("./mock_pack"), "mock", 20, strategy.fs.as_ref())
+        .await
+        .expect("should mock pack file");
+      let _ = test_read_keys(&dir.join("./mock_pack"), &strategy)
+        .await
+        .map_err(|e| panic!("{:?}", e));
+      let _ = test_read_contents(&dir.join("./mock_pack"), &strategy)
+        .await
+        .map_err(|e| panic!("{:?}", e));
+      let _ = test_read_keys_non_exists(&strategy)
+        .await
+        .map_err(|e| panic!("{:?}", e));
+      let _ = test_read_contents_non_exists(&strategy)
+        .await
+        .map_err(|e| panic!("{:?}", e));
+    }
   }
 }

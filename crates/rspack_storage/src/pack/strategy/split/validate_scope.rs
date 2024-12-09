@@ -84,16 +84,16 @@ mod tests {
   use std::sync::Arc;
 
   use rspack_error::Result;
-  use rspack_fs::MemoryFileSystem;
   use rspack_paths::Utf8PathBuf;
   use rustc_hash::FxHashSet as HashSet;
 
   use crate::pack::{
     data::{PackOptions, PackScope, ScopeMeta},
-    fs::{PackBridgeFS, PackFS},
+    fs::PackFS,
     strategy::{
       split::util::test_pack_utils::{
-        flush_file_mtime, mock_meta_file, mock_updates, save_scope, UpdateVal,
+        clean_strategy, create_strategies, flush_file_mtime, mock_meta_file, mock_updates,
+        save_scope, UpdateVal,
       },
       ScopeReadStrategy, ScopeValidateStrategy, ScopeWriteStrategy, SplitPackStrategy,
       ValidateResult,
@@ -204,93 +204,81 @@ mod tests {
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_validate_scope_meta() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    fs.remove_dir(&Utf8PathBuf::from("/cache/test_meta_valid"))
+    for strategy in create_strategies("valid_scope_meta") {
+      clean_strategy(&strategy).await;
+      let scope_path = strategy.get_path("scope_meta");
+      let pack_options = Arc::new(PackOptions {
+        bucket_size: 10,
+        pack_size: 100,
+        expire: 100000,
+      });
+      mock_meta_file(
+        &ScopeMeta::get_path(&scope_path),
+        strategy.fs.as_ref(),
+        pack_options.as_ref(),
+        100,
+      )
       .await
-      .expect("should clean dir");
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_meta_valid"),
-      Utf8PathBuf::from("/temp/test_meta_valid"),
-      fs.clone(),
-    );
-    let scope_path = Utf8PathBuf::from("/cache/test_meta_valid/validate_meta");
-    let pack_options = Arc::new(PackOptions {
-      bucket_size: 10,
-      pack_size: 100,
-      expire: 100000,
-    });
-    mock_meta_file(
-      &ScopeMeta::get_path(&scope_path),
-      fs.clone(),
-      pack_options.as_ref(),
-      100,
-    )
-    .await
-    .expect("should mock meta file");
+      .expect("should mock meta file");
 
-    let _ = test_valid_meta(scope_path.clone(), &strategy)
-      .await
-      .map_err(|e| panic!("{}", e));
+      let _ = test_valid_meta(scope_path.clone(), &strategy)
+        .await
+        .map_err(|e| panic!("{}", e));
 
-    let _ = test_invalid_option_changed(scope_path.clone(), &strategy)
-      .await
-      .map_err(|e| panic!("{}", e));
+      let _ = test_invalid_option_changed(scope_path.clone(), &strategy)
+        .await
+        .map_err(|e| panic!("{}", e));
 
-    let _ = test_invalid_expired(scope_path.clone(), &strategy)
-      .await
-      .map_err(|e| panic!("{}", e));
+      let _ = test_invalid_expired(scope_path.clone(), &strategy)
+        .await
+        .map_err(|e| panic!("{}", e));
+    }
   }
 
   #[tokio::test]
   #[cfg_attr(miri, ignore)]
   async fn should_validate_scope_packs() {
-    let fs = Arc::new(PackBridgeFS(Arc::new(MemoryFileSystem::default())));
-    fs.remove_dir(&Utf8PathBuf::from("/cache/test_packs_valid"))
-      .await
-      .expect("should clean dir");
-    let strategy = SplitPackStrategy::new(
-      Utf8PathBuf::from("/cache/test_packs_valid"),
-      Utf8PathBuf::from("/temp/test_packs_valid"),
-      fs.clone(),
-    );
-    let scope_path = Utf8PathBuf::from("/cache/test_packs_valid/validate_packs");
-    let pack_options = Arc::new(PackOptions {
-      bucket_size: 10,
-      pack_size: 100,
-      expire: 100000,
-    });
-    let mut mock_scope = PackScope::empty(scope_path.clone(), pack_options.clone());
-    let updates = mock_updates(0, 100, 30, UpdateVal::Value("val".to_string()));
-    strategy
-      .update_scope(&mut mock_scope, updates)
-      .expect("should update scope");
-    strategy
-      .before_write(&mock_scope)
-      .await
-      .expect("should prepare dirs");
-    let files = save_scope(&mut mock_scope, &strategy)
-      .await
-      .expect("should write scope");
-    strategy
-      .after_write(&mock_scope, files.wrote_files.clone(), files.removed_files)
-      .await
-      .expect("should clean dirs");
-    strategy
-      .after_all(&mut mock_scope)
-      .expect("should modify wrote flags");
+    for strategy in create_strategies("validate_scope_packs") {
+      clean_strategy(&strategy).await;
+      let scope_path = strategy.get_path("scope_packs");
+      let pack_options = Arc::new(PackOptions {
+        bucket_size: 10,
+        pack_size: 100,
+        expire: 100000,
+      });
+      let mut mock_scope = PackScope::empty(scope_path.clone(), pack_options.clone());
+      let updates = mock_updates(0, 100, 30, UpdateVal::Value("val".to_string()));
+      strategy
+        .update_scope(&mut mock_scope, updates)
+        .expect("should update scope");
+      strategy
+        .before_write(&mock_scope)
+        .await
+        .expect("should prepare dirs");
+      let files = save_scope(&mut mock_scope, &strategy)
+        .await
+        .expect("should write scope");
+      strategy
+        .after_write(&mock_scope, files.wrote_files.clone(), files.removed_files)
+        .await
+        .expect("should clean dirs");
+      strategy
+        .after_all(&mut mock_scope)
+        .expect("should modify wrote flags");
 
-    let _ = test_valid_packs(scope_path.clone(), &strategy, pack_options.clone())
+      let _ = test_valid_packs(scope_path.clone(), &strategy, pack_options.clone())
+        .await
+        .map_err(|e| panic!("{}", e));
+
+      let _ = test_invalid_packs_changed(
+        scope_path.clone(),
+        &strategy,
+        strategy.fs.clone(),
+        pack_options.clone(),
+        files.wrote_files,
+      )
       .await
       .map_err(|e| panic!("{}", e));
-
-    let _ = test_invalid_packs_changed(
-      scope_path.clone(),
-      &strategy,
-      fs.clone(),
-      pack_options.clone(),
-      files.wrote_files,
-    )
-    .await
-    .map_err(|e| panic!("{}", e));
+    }
   }
 }
