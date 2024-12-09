@@ -15,7 +15,7 @@ pub struct MemoryStorage {
 }
 
 impl Storage for MemoryStorage {
-  fn get_all(&self, scope: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+  fn load(&self, scope: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
     if let Some(value) = self.inner.lock().expect("should get lock").get(scope) {
       value.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     } else {
@@ -46,7 +46,7 @@ mod tests {
     storage.set(scope, "a".as_bytes().to_vec(), "abc".as_bytes().to_vec());
     storage.set(scope, "b".as_bytes().to_vec(), "bcd".as_bytes().to_vec());
 
-    let arr = storage.get_all(scope);
+    let arr = storage.load(scope);
     assert_eq!(arr.len(), 2);
     for (key, value) in arr {
       if key == "a".as_bytes() {
@@ -57,7 +57,7 @@ mod tests {
     }
 
     storage.remove(scope, "b".as_bytes());
-    let arr = storage.get_all(scope);
+    let arr = storage.load(scope);
     assert_eq!(arr.len(), 1);
   }
 }

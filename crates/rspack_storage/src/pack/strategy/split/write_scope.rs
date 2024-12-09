@@ -52,7 +52,7 @@ impl ScopeWriteStrategy for SplitPackStrategy {
 
   fn update_scope(&self, scope: &mut PackScope, updates: ScopeUpdate) -> Result<()> {
     if !scope.loaded() {
-      return Err(error!("scope not loaded, run `get_all` first"));
+      return Err(error!("scope not loaded, run `load` first"));
     }
     let mut scope_meta = scope.meta.take_value().expect("should have scope meta");
     let mut scope_packs = scope.packs.take_value().expect("should have scope packs");
@@ -135,7 +135,7 @@ impl ScopeWriteStrategy for SplitPackStrategy {
 
   async fn write_packs(&self, scope: &mut PackScope) -> Result<WriteScopeResult> {
     if !scope.loaded() {
-      return Err(error!("scope not loaded, run `get_all` first"));
+      return Err(error!("scope not loaded, run `load` first"));
     }
     let removed_files = std::mem::take(&mut scope.removed);
     let packs = scope.packs.take_value().expect("should have scope packs");
@@ -187,7 +187,7 @@ impl ScopeWriteStrategy for SplitPackStrategy {
 
   async fn write_meta(&self, scope: &mut PackScope) -> Result<WriteScopeResult> {
     if !scope.loaded() {
-      return Err(error!("scope not loaded, run `get_all` first"));
+      return Err(error!("scope not loaded, run `load` first"));
     }
     let meta = scope.meta.expect_value();
     let path = self.get_temp_path(&meta.path)?;

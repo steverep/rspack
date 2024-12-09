@@ -62,7 +62,7 @@ impl ScopeManager {
     Ok(rx)
   }
 
-  pub async fn get_all(&self, name: &'static str) -> Result<StorageContent> {
+  pub async fn load(&self, name: &'static str) -> Result<StorageContent> {
     let mut scopes = self.scopes.lock().await;
     let scope = scopes
       .entry(name)
@@ -242,7 +242,7 @@ mod tests {
     let manager = ScopeManager::new(options, strategy);
 
     // start with empty
-    assert!(manager.get_all("scope1").await?.is_empty());
+    assert!(manager.load("scope1").await?.is_empty());
     // update memory scopes but not write to files
     let mut scope_updates = HashMap::default();
     scope_updates.insert(
@@ -259,8 +259,8 @@ mod tests {
     );
     let rx = manager.save(scope_updates)?;
 
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
-    assert_eq!(manager.get_all("scope2").await?.len(), 100);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope2").await?.len(), 100);
     assert!(!(fs.exists(root.join("scope1/cache_meta").as_path()).await?));
     assert!(!(fs.exists(root.join("scope2/cache_meta").as_path()).await?));
 
@@ -268,8 +268,8 @@ mod tests {
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
 
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
-    assert_eq!(manager.get_all("scope2").await?.len(), 100);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope2").await?.len(), 100);
     assert!(fs.exists(root.join("scope1/cache_meta").as_path()).await?);
     assert!(fs.exists(root.join("scope2/cache_meta").as_path()).await?);
     Ok(())
@@ -291,8 +291,8 @@ mod tests {
     let manager = ScopeManager::new(options, strategy);
 
     // read from files
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
-    assert_eq!(manager.get_all("scope2").await?.len(), 100);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope2").await?.len(), 100);
 
     // update scopes
     let mut scope_updates = HashMap::default();
@@ -310,7 +310,7 @@ mod tests {
     );
     let rx = manager.save(scope_updates)?;
     let (update_items, insert_items): (Vec<_>, Vec<_>) = manager
-      .get_all("scope1")
+      .load("scope1")
       .await?
       .into_iter()
       .partition(|(_, v)| {
@@ -319,7 +319,7 @@ mod tests {
       });
     assert_eq!(insert_items.len(), 50);
     assert_eq!(update_items.len(), 50);
-    assert_eq!(manager.get_all("scope2").await?.len(), 50);
+    assert_eq!(manager.load("scope2").await?.len(), 50);
     let scope1_mtime = fs
       .metadata(root.join("scope1/cache_meta").as_path())
       .await?
@@ -332,8 +332,8 @@ mod tests {
     // wait for updating files
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
-    assert_eq!(manager.get_all("scope2").await?.len(), 50);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope2").await?.len(), 50);
     assert_ne!(
       fs.metadata(root.join("scope1/cache_meta").as_path())
         .await?
@@ -366,12 +366,12 @@ mod tests {
     let manager = ScopeManager::new(options.clone(), strategy.clone());
     // should report error when invalid failed
     assert_eq!(
-      manager.get_all("scope1").await.unwrap_err().to_string(),
+      manager.load("scope1").await.unwrap_err().to_string(),
       "validation failed due to `options.bucketSize` changed"
     );
 
     // clear after invalid, can be used as a empty scope
-    assert!(manager.get_all("scope1").await?.is_empty());
+    assert!(manager.load("scope1").await?.is_empty());
     let mut scope_updates = HashMap::default();
     scope_updates.insert(
       "scope1",
@@ -380,14 +380,14 @@ mod tests {
         .collect::<HashMap<_, _>>(),
     );
     let rx = manager.save(scope_updates)?;
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
-    assert_eq!(manager.get_all("scope1").await?.len(), 100);
+    assert_eq!(manager.load("scope1").await?.len(), 100);
 
     // will override cache files to new one
     let manager2 = ScopeManager::new(options, strategy);
-    assert_eq!(manager2.get_all("scope1").await?.len(), 100);
+    assert_eq!(manager2.load("scope1").await?.len(), 100);
 
     Ok(())
   }

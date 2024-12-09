@@ -57,8 +57,8 @@ impl PackStorage {
 
 #[async_trait::async_trait]
 impl Storage for PackStorage {
-  async fn get_all(&self, name: &'static str) -> Result<StorageContent> {
-    self.manager.get_all(name).await
+  async fn load(&self, name: &'static str) -> Result<StorageContent> {
+    self.manager.load(name).await
   }
   fn set(&self, scope: &'static str, key: StorageItemKey, value: StorageItemValue) {
     let mut updates = self.updates.lock().expect("should get lock");
@@ -70,7 +70,7 @@ impl Storage for PackStorage {
     let scope_update = updates.entry(scope).or_default();
     scope_update.insert(key.to_vec(), None);
   }
-  fn idle(&self) -> Result<Receiver<Result<()>>> {
+  fn trigger_save(&self) -> Result<Receiver<Result<()>>> {
     self.manager.save(std::mem::take(
       &mut *self.updates.lock().expect("should get lock"),
     ))
