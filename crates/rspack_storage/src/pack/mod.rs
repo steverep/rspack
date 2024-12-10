@@ -59,7 +59,7 @@ impl PackStorage {
 impl Storage for PackStorage {
   async fn load(&self, name: &'static str) -> Result<StorageContent> {
     let res = self.manager.load(name).await;
-    println!("get all {name:?} {res:?}");
+    // println!("get all {name:?} {res:?}");
     res
   }
   fn set(&self, scope: &'static str, key: StorageItemKey, value: StorageItemValue) {

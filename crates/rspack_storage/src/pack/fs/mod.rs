@@ -43,7 +43,7 @@ impl PackFS for PackBridgeFS {
   }
 
   async fn remove_dir(&self, path: &Utf8Path) -> Result<()> {
-    if let Ok(_) = self.exists(path).await {
+    if self.exists(path).await? {
       self
         .0
         .remove_dir_all(path)

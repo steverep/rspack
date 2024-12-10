@@ -19,8 +19,8 @@ impl From<RawStorageOptions> for StorageOptions {
         StorageOptions::FileSystem(PackStorageOptions {
           temp_root: root.join(".temp"),
           root,
-          bucket_size: 1024,
-          pack_size: 1024,
+          bucket_size: 20,
+          pack_size: 500 * 1024,
           expire: 7 * 24 * 60 * 60 * 1000,
         })
       }

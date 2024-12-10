@@ -69,9 +69,9 @@ impl Rspack {
     let loader_resolver_factory = (*resolver_factory_reference)
       .get_loader_resolver_factory(compiler_options.resolve_loader.clone());
 
-    let intermediate_filesystem: Option<Box<dyn IntermediateFileSystem>> =
+    let intermediate_filesystem: Option<Arc<dyn IntermediateFileSystem>> =
       if let Some(fs) = intermediate_filesystem {
-        Some(Box::new(NodeFileSystem::new(fs).map_err(|e| {
+        Some(Arc::new(NodeFileSystem::new(fs).map_err(|e| {
           Error::from_reason(format!("Failed to create intermediate filesystem: {e}",))
         })?))
       } else {
