@@ -1,5 +1,6 @@
 use std::io::ErrorKind;
 
+use cow_utils::CowUtils;
 use rspack_error::{
   miette::{self},
   thiserror::{self, Error},
@@ -52,10 +53,13 @@ impl PackFsError {
     }
   }
   pub fn is_not_found(&self) -> bool {
-    match &self.kind {
-      Some(kind) => kind == &ErrorKind::NotFound,
-      None => false,
+    if self.kind.is_some_and(|k| matches!(k, ErrorKind::NotFound)) {
+      return true;
     }
+    let error_content = self.inner.to_string();
+    let lower_case_error_content = error_content.cow_to_lowercase();
+    lower_case_error_content.contains("no such file")
+      || lower_case_error_content.contains("file not exists")
   }
 }
 
