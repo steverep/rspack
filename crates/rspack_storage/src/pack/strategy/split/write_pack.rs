@@ -176,7 +176,6 @@ impl PackWriteStrategy for SplitPackStrategy {
 
     writer.flush().await?;
 
-    println!("flused");
     Ok(())
   }
 }

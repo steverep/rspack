@@ -37,20 +37,18 @@ impl ScopeManager {
   }
 
   pub fn save(&self, updates: ScopeUpdates) -> Result<Receiver<Result<()>>> {
-    update_scopes(
-      &mut self.scopes.try_lock().expect("should get scope lock"),
-      updates,
-      self.options.clone(),
-      self.strategy.as_ref(),
-    )?;
-
     let scopes = self.scopes.clone();
+    let options = self.options.clone();
     let strategy = self.strategy.clone();
     let (tx, rx) = oneshot::channel();
     self.queue.add_task(Box::pin(async move {
       let mut scopes_lock = scopes.lock().await;
-      let old_scopes = std::mem::take(&mut *scopes_lock);
-      let _ = match save_scopes(old_scopes, strategy.as_ref()).await {
+      let mut old_scopes = std::mem::take(&mut *scopes_lock);
+      if let Err(e) = update_scopes(&mut old_scopes, updates, options, strategy.as_ref()) {
+        panic!("update scopes failed: {}", e);
+      }
+      let res = save_scopes(old_scopes, strategy.as_ref()).await;
+      let _ = match res {
         Ok(new_scopes) => {
           let _ = std::mem::replace(&mut *scopes_lock, new_scopes);
           tx.send(Ok(()))
