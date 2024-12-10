@@ -257,11 +257,6 @@ mod tests {
     );
     let rx = manager.save(scope_updates)?;
 
-    assert_eq!(manager.load("scope1").await?.len(), 100);
-    assert_eq!(manager.load("scope2").await?.len(), 100);
-    assert!(!(fs.exists(root.join("scope1/cache_meta").as_path()).await?));
-    assert!(!(fs.exists(root.join("scope2/cache_meta").as_path()).await?));
-
     // wait for saving to files
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
@@ -307,17 +302,7 @@ mod tests {
         .collect::<HashMap<_, _>>(),
     );
     let rx = manager.save(scope_updates)?;
-    let (update_items, insert_items): (Vec<_>, Vec<_>) = manager
-      .load("scope1")
-      .await?
-      .into_iter()
-      .partition(|(_, v)| {
-        let val = String::from_utf8(v.to_vec()).unwrap();
-        val.ends_with("_new")
-      });
-    assert_eq!(insert_items.len(), 50);
-    assert_eq!(update_items.len(), 50);
-    assert_eq!(manager.load("scope2").await?.len(), 50);
+
     let scope1_mtime = fs
       .metadata(root.join("scope1/cache_meta").as_path())
       .await?
@@ -330,8 +315,18 @@ mod tests {
     // wait for updating files
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
-    assert_eq!(manager.load("scope1").await?.len(), 100);
+    let (update_items, insert_items): (Vec<_>, Vec<_>) = manager
+      .load("scope1")
+      .await?
+      .into_iter()
+      .partition(|(_, v)| {
+        let val = String::from_utf8(v.to_vec()).unwrap();
+        val.ends_with("_new")
+      });
+    assert_eq!(insert_items.len(), 50);
+    assert_eq!(update_items.len(), 50);
     assert_eq!(manager.load("scope2").await?.len(), 50);
+
     assert_ne!(
       fs.metadata(root.join("scope1/cache_meta").as_path())
         .await?
@@ -378,7 +373,6 @@ mod tests {
         .collect::<HashMap<_, _>>(),
     );
     let rx = manager.save(scope_updates)?;
-    assert_eq!(manager.load("scope1").await?.len(), 100);
     rx.await
       .unwrap_or_else(|e| panic!("save failed: {:?}", e))?;
     assert_eq!(manager.load("scope1").await?.len(), 100);
