@@ -99,7 +99,6 @@ impl SplitPackStrategy {
   }
 
   pub fn get_temp_path(&self, path: &Utf8Path) -> Result<Utf8PathBuf> {
-    println!("path: {:?} {:?}", self.root, path);
     let relative_path = path
       .strip_prefix(&*self.root)
       .map_err(|e| error!("get relative path failed: {}", e))?;
