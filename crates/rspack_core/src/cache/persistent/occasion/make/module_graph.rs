@@ -115,7 +115,7 @@ pub fn save_module_graph(
     .collect::<Vec<_>>();
 
   let saved = nodes.len();
-  tracing::info!("save info {}/{}", saved, built_modules.len());
+  println!("save info {}/{}", saved, built_modules.len());
 
   for (id, bytes) in nodes {
     storage.set(SCOPE, id, bytes)

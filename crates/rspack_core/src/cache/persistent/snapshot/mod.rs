@@ -46,8 +46,12 @@ impl Snapshot {
     // TODO merge package version file
     for path in paths {
       // TODO check path exists
+      let utf8_path = path.assert_utf8();
+      if self.fs.metadata(utf8_path).is_err() {
+        continue;
+      }
       // TODO directory check all sub file
-      let path_str = path.assert_utf8().as_str();
+      let path_str = utf8_path.as_str();
       if self.options.is_immutable_path(path_str) {
         continue;
       }

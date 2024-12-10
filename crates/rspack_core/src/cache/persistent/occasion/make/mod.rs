@@ -85,6 +85,9 @@ impl MakeOccasion {
       .make_failed_dependencies
       .extend(make_failed_dependencies);
 
+    // TODO remove it after code splitting support incremental rebuild
+    artifact.has_module_graph_change = true;
+
     Ok(artifact)
   }
 }
