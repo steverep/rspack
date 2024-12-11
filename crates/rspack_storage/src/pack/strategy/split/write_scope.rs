@@ -33,8 +33,8 @@ impl ScopeWriteStrategy for SplitPackStrategy {
     wrote_files: HashSet<Utf8PathBuf>,
     removed_files: HashSet<Utf8PathBuf>,
   ) -> Result<()> {
-    self.move_temp_files(wrote_files).await?;
     self.remove_files(removed_files).await?;
+    self.move_temp_files(wrote_files).await?;
     self.remove_unrelated_files(scope).await?;
     self.fs.remove_dir(&self.temp_root).await?;
     Ok(())
